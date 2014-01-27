@@ -1,5 +1,7 @@
 frastPyqt
 =========
+
+基于百度知道的GUI小脚本
 使用库
 pyqt
 PyQuery
