@@ -12,7 +12,7 @@ import ui_baidu
 import ui_login
 import ui_question
 import ui_answer
-from PyQt4 import QtGui
+from PyQt4.QtGui import *
 import sys
 
 class signBaidu(object):
@@ -107,6 +107,34 @@ class signBaidu(object):
             postData = urllib.urlencode(self.postDict)
             self.getURL(self.loginUrl, postData)
             #print self.requestData
+            if "请您输入验证码" in self.requestData:
+                d=pq(self.requestData)
+                vcodeimgUrl=d('.row-padbtm-10').find('img').attr('src')
+                self.vcodestr = vcodeimgUrl.split('?')[1]
+                #print vcodeimgUrl
+                pixmap = QPixmap()
+                pixmap.loadFromData(urllib.urlopen(vcodeimgUrl).read())
+                ui.vcodeImg.setPixmap(pixmap)
+                #urllib.urlretrieve(vcodeimgUrl,'test.jpg')  
+                #self.vcode = raw_input('Verification code:')
+                self.postDict['vcodestr'] = self.vcodestr
+
+            elif "您输入的密码有误" in self.requestData:
+                print 'Password WRONG!'
+                return False
+            elif "您输入的验证码有误" in self.requestData:
+                print 'Verifycode WRONG!'  
+                return False
+            elif "系统错误" in self.requestData:
+                print 'Unexpect Error!'  
+                return False
+            else:
+                for line in self.requestData.split('<'):
+                    if 'itj=23' in line:
+                        self.tbUrl = line.split('"')[1].replace('amp;', '')
+                        print 'Get Baidu Bar Url...Success!'
+
+            """
             self.result = self.getLoginRequest()
             if self.result == '0':
                 postData = urllib.urlencode(self.postDict)
@@ -114,6 +142,7 @@ class signBaidu(object):
                 self.result = self.getLoginRequest()
             elif self.result == '1':
                 print 'Login FAIL!'
+            """
         else:
             print 'Construct Post data fail.'
 
@@ -126,7 +155,7 @@ class signBaidu(object):
             self.vcodestr = vcodeimgUrl.split('?')[1]
             print '-' * 79
             #print vcodeimgUrl
-            pixmap = QtGui.QPixmap()
+            pixmap = QPixmap()
             pixmap.loadFromData(urllib.urlopen(vcodeimgUrl).read())
             ui.vcodeImg.setPixmap(pixmap)
             #urllib.urlretrieve(vcodeimgUrl,'test.jpg')  
@@ -270,22 +299,28 @@ class signBaidu(object):
                 for row in worker:
                     row.join()
                 worker = []
+
     def answer(self,url,postDict):
         postData = urllib.urlencode(postDict)
         self.getURL(url, postData)
-        print self.requestData 
         if "提交" in self.requestData:
             d=pq(self.requestData)
             vcodeimgUrl=d('.vcode-img').attr('src')
-            tpixmap = QtGui.QPixmap()
-            tpixmap.loadFromData(urllib.urlopen(vcodeimgUrl).read())
+            if vcodeimgUrl:
+                tpixmap = QPixmap()
+                tpixmap.loadFromData(urllib.urlopen(vcodeimgUrl).read())
 
-            aPanelui.vcodeimg.setPixmap(tpixmap)
+                aPanelui.vcodeimg.setPixmap(tpixmap)
 
-            self.answerPost['vcodestr'] = vcodeimgUrl.split('?')[1]
-            self.answerPost['vcodestr'] = re.findall(r"codestr=(.*)",postDict['vcodestr'])[0]
-
-
+                self.answerPost['vcodestr'] = vcodeimgUrl.split('?')[1]
+                self.answerPost['vcodestr'] = re.findall(r"codestr=(.*)",postDict['vcodestr'])[0]
+                return False
+        
+        msgBox = QMessageBox()
+        msgBox.setText(u'提交成功！')
+        msgBox.setStandardButtons(QMessageBox.Ok)
+        msgBox.exec_()
+        aPanel.close()      
             
 
     def question(self,title,content,vcode):
@@ -296,21 +331,21 @@ class signBaidu(object):
         self.questionPost['content'] = content
         postData = urllib.urlencode(self.questionPost)
         self.getURL('http://zhidao.baidu.com/msubmit/ask?ta=1&amp;pu=null&amp;cifr=null', postData)
-        print self.requestData 
         if "输入验证码" in self.requestData: 
             d=pq(self.requestData)
             vcodeimgUrl=d('.vcode-img').attr('src')
-            pixmap = QtGui.QPixmap()
+            pixmap = QPixmap()
             pixmap.loadFromData(urllib.urlopen(vcodeimgUrl).read())
             qPanelUi.vcodeimg.setPixmap(pixmap)
-            #vcode = raw_input('Verification code:')   
+ 
             self.questionPost['vcodestr'] = vcodeimgUrl.split('?')[1]
-            self.questionPost['vcodestr'] = re.findall(r"codestr=(.*)",self.questionPost['vcodestr'])[0] 
-            #postDict['vcode']=vcode
-            #print postDict
-            #postData = urllib.urlencode(postDict)  
-            #self.getURL('http://zhidao.baidu.com/msubmit/ask?ta=1&amp;pu=null&amp;cifr=null', postData)        
-            
+            self.questionPost['vcodestr'] = re.findall(r"codestr=(.*)",self.questionPost['vcodestr'])[0]       
+        else:
+            msgBox = QMessageBox()
+            msgBox.setText(u'提交成功！')
+            msgBox.setStandardButtons(QMessageBox.Ok)
+            msgBox.exec_()
+            qPanelUi.close()     
     #--------------------------------------------------------------------------------
 
 def showQPanel():
@@ -330,20 +365,16 @@ def sinQuestion():
     login.question(title,content,vcode)
     
 def sinAnswer(): 
-    url='http://zhidao.baidu.com/msubmit/submitedit?cifr=null&step=2&ref_name=answer&svf=wap_reply'
-
+    url='http://zhidao.baidu.com/msubmit/answer?ta=1&cifr=null'
 
     login.answerPost['qid'] = str(aPanelui.qid.text().toUtf8())
     login.answerPost['content'] = str(aPanelui.content.toPlainText().toUtf8())
     login.answerPost['vcode'] = str(aPanelui.vcode.text().toUtf8())
-    if login.answerPost['vcode']:
-        url='http://zhidao.baidu.com/msubmit/answer?ta=1&cifr=null'
-    print login.answerPost
     login.answer(url, login.answerPost)
 
 def zLogin():
-    login.username = str(ui.userName.text().toUtf8())
-    login.password = str(ui.password.text().toUtf8())
+    login.username = str(ui.userName.text().toUtf8()).strip()
+    login.password = str(ui.password.text().toUtf8()).strip()
     login.postDict['vcode'] = str(ui.vcode.text().toUtf8())
     login.postDict['verifycode'] = login.postDict['vcode']
     main()
@@ -367,17 +398,17 @@ def main():
     mPanel.show()
     
 if __name__ == '__main__': 
-    app = QtGui.QApplication(sys.argv)
-    Dialog = QtGui.QDialog()
+    app = QApplication(sys.argv)
+    Dialog = QDialog()
     ui = ui_login.Ui_Login()
     ui.setupUi(Dialog)
     login = signBaidu()
     ui.pushButton.clicked.connect(zLogin)
     Dialog.show()
-    mPanel = QtGui.QDialog()  
-    qPanel = QtGui.QDialog()  
+    mPanel = QDialog()  
+    qPanel = QDialog()  
     qPanelUi = ui_question.Ui_Question()
-    aPanel = QtGui.QDialog()
+    aPanel = QDialog()
     aPanelui = ui_answer.Ui_Answer()
     
     sys.exit(app.exec_())    
