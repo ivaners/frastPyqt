@@ -46,6 +46,9 @@ class signBaidu(object):
         'bd_page_type': ''
     }
     questionPost = {}
+    loginVcodeImageUrl = ''
+    answerVodeImageUrl = ''
+    questionVodeImageUrl = ''
     answerPost = {}
     requestData = ''
     #获取一个保存cookie的对象
@@ -70,7 +73,7 @@ class signBaidu(object):
         #print 'in getURL'
         req = urllib2.Request(url, data)
         req.add_header('Content-Type', 'application/x-www-form-urlencoded')
-        resp = urllib2.urlopen(req)
+        resp = urllib2.urlopen(req, timeout=10)
         #print 'Get Url:', url
         self.requestData = resp.read()
 
@@ -106,18 +109,13 @@ class signBaidu(object):
             #print self.postDict
             postData = urllib.urlencode(self.postDict)
             self.getURL(self.loginUrl, postData)
-            #print self.requestData
-            if "请您输入验证码" in self.requestData:
-                d=pq(self.requestData)
-                vcodeimgUrl=d('.row-padbtm-10').find('img').attr('src')
+            d=pq(self.requestData)
+            vcodeimgUrl=d('.row-padbtm-10').find('img').attr('src')
+            self.loginVcodeImageUrl = vcodeimgUrl
+            if "请您输入验证码" in self.requestData:                
                 self.vcodestr = vcodeimgUrl.split('?')[1]
-                #print vcodeimgUrl
-                pixmap = QPixmap()
-                pixmap.loadFromData(urllib.urlopen(vcodeimgUrl).read())
-                ui.vcodeImg.setPixmap(pixmap)
-                #urllib.urlretrieve(vcodeimgUrl,'test.jpg')  
-                #self.vcode = raw_input('Verification code:')
                 self.postDict['vcodestr'] = self.vcodestr
+                return False
 
             elif "您输入的密码有误" in self.requestData:
                 print 'Password WRONG!'
@@ -133,172 +131,11 @@ class signBaidu(object):
                     if 'itj=23' in line:
                         self.tbUrl = line.split('"')[1].replace('amp;', '')
                         print 'Get Baidu Bar Url...Success!'
+                        return True
 
-            """
-            self.result = self.getLoginRequest()
-            if self.result == '0':
-                postData = urllib.urlencode(self.postDict)
-                self.getURL(self.loginUrl, postData)
-                self.result = self.getLoginRequest()
-            elif self.result == '1':
-                print 'Login FAIL!'
-            """
         else:
             print 'Construct Post data fail.'
-
-    def getLoginRequest(self):
-        """Get infomation from login page"""
-        #print 'in getLoginRequest'
-        if "请您输入验证码" in self.requestData:
-            d=pq(self.requestData)
-            vcodeimgUrl=d('.row-padbtm-10').find('img').attr('src')
-            self.vcodestr = vcodeimgUrl.split('?')[1]
-            print '-' * 79
-            #print vcodeimgUrl
-            pixmap = QPixmap()
-            pixmap.loadFromData(urllib.urlopen(vcodeimgUrl).read())
-            ui.vcodeImg.setPixmap(pixmap)
-            #urllib.urlretrieve(vcodeimgUrl,'test.jpg')  
-            print '-' * 79
-            #self.vcode = raw_input('Verification code:')
-            self.postDict['vcodestr'] = self.vcodestr
-            #self.postDict['verifycode'] = self.vcode
-            #print self.postDict
-            return '0'
-        elif "您输入的密码有误" in self.requestData:
-            print 'Password WRONG!'
-            #print self.requestData
-            self.getLoginRequest()
-            #return '1'
-
-        elif "您输入的验证码有误" in self.requestData:
-            print 'Verifycode WRONG!'
-            #print self.requestData
-            return '1'
-
-        elif "系统错误" in self.requestData:
-            print 'Unexpect Error!'
-            #print self.requestData
-            self.getLoginRequest()
-            #return '1'
-
-        else:
-            for line in self.requestData.split('<'):
-                if 'itj=23' in line:
-                    self.tbUrl = line.split('"')[1].replace('amp;', '')
-                    print 'Get Baidu Bar Url...Success!'
-            #print self.requestData
-
-    def getBar(self):
-        """Get Baidu Bar List"""
-        #print 'in getBar'
-        favoUrl = ''
-        self.getURL(self.tbUrl, None)
-        #print self.requestData
-        for line in self.requestData.split('<'):
-            if 'tab=favorite' in line:
-                favoUrl = self.mainUrl + line.split('"')[1]
-                break
-
-        if favoUrl:
-            self.getURL(favoUrl, None)
-            #print self.requestData
-            for line in self.requestData.split('<'):
-                if 'm?kw' in line:
-                    tmp_tbUrl = favoUrl.split('?')[0] + "?" + line.split('"')[1].split('?')[1]
-                    self.barlist.append(tmp_tbUrl.replace('amp;', ''))
-                    #print tmp_tbUrl.replace('amp;', '')
-
-    def signBar(self):
-        """Sign in Baidu Bar"""
-        #print 'in signBar'
-        if self.checkBar():
-            print 'OK!'
-            print '-' * 40
-            print 'Baidu Bar Sign starting...'
-            for url in self.barlist:
-                self.getURL(url, None)
-                for line in self.requestData.split('<'):
-                    if 'sign?' in line:
-                        self.getURL(self.mainUrl + line.split('"')[1].replace('amp;',''),None)
-                        break
-                for i in range(len(self.requestData.split('/'))):
-                    if 'name="top"' in self.requestData.split('/')[i]:
-                        temp_info = self.requestData.split('/')[i + 1]
-                        break
-                if '签到成功' in temp_info:
-                    print 'Success:',urllib.unquote(url.split('=')[1]).decode('utf8'),\
-                                     temp_info.split('>')[2].split('<')[0].decode('utf8') +\
-                                     temp_info.split('>')[3].strip('<').decode('utf8')
-                else:
-                    print 'Fail:',urllib.unquote(url.split('=')[1]).decode('utf8')
-                    self.faillist.append(url)
-            print '-' * 40
-        else:
-            print 'Fail:No favourite bar.'
-
-    def showBarName(self, bar_list):
-        """Show Bar Name"""
-        #print 'in showBarName'
-        print '-' * 40
-        for url in bar_list:
-            print urllib.unquote(url.split('=')[1]).decode('utf8')
-        print '-' * 40
-
-    def checkBar(self):
-        """Check Bar list"""
-        #print 'in checkBar'
-        if self.barlist:
-            return True
-        else:
             return False
-
-    #--------------------------------------------------------------------------------
-    def getURL_threading(self, url, data):
-        """Open webpages and get the HTML code by each threading"""
-        #print 'in getURL'
-        req = urllib2.Request(url, data)
-        req.add_header('Content-Type', 'application/x-www-form-urlencoded')
-        resp = urllib2.urlopen(req)
-        #print 'Get Url:', url
-        return resp.read()
-
-    def signBar_threading(self, barUrl):
-        """Sign in Baidu Bar by using threading"""
-        resp = self.getURL_threading(barUrl, None)
-        for line in resp.split('<'):
-            if 'sign?' in line:
-                #print self.mainUrl + line.split('"')[1].replace('amp;','')
-                resp = self.getURL_threading(self.mainUrl + line.split('"')[1].replace('amp;',''),None)
-                break
-
-        for i in range(len(resp.split('/'))):
-            if 'name="top"' in resp.split('/')[i]:
-                temp_info = resp.split('/')[i + 1]
-                break
-        if '签到成功' in temp_info:
-            print 'Success:',urllib.unquote(barUrl.split('=')[1]).decode('utf8'),\
-                             temp_info.split('>')[2].split('<')[0].decode('utf8') +\
-                             temp_info.split('>')[3].strip('<').decode('utf8')
-        else:
-            print 'Fail:', urllib.unquote(barUrl.split('=')[1]).decode('utf8')
-            self.faillist.append(barUrl)
-
-    def sign_threading(self):
-        worker = []
-        names = locals()
-        print 'OK!'
-        print '-' * 40
-        print 'Baidu Bar Sign starting...'
-        for i in range(0,len(self.barlist)):
-            names['t%d' % i]  = threading.Thread(target=self.signBar_threading,args=(self.barlist[i],))
-            names['t%d' % i].start()
-            worker.append(names['t%d' % i])
-            if i % 5 == 0 and i > 0:
-                print 'Thread-' + str(i / 5) + ' Starting...'
-                for row in worker:
-                    row.join()
-                worker = []
 
     def answer(self,url,postDict):
         postData = urllib.urlencode(postDict)
@@ -307,21 +144,11 @@ class signBaidu(object):
             d=pq(self.requestData)
             vcodeimgUrl=d('.vcode-img').attr('src')
             if vcodeimgUrl:
-                tpixmap = QPixmap()
-                tpixmap.loadFromData(urllib.urlopen(vcodeimgUrl).read())
-
-                aPanelui.vcodeimg.setPixmap(tpixmap)
-
+                self.answerVodeImageUrl = vcodeimgUrl
                 self.answerPost['vcodestr'] = vcodeimgUrl.split('?')[1]
                 self.answerPost['vcodestr'] = re.findall(r"codestr=(.*)",postDict['vcodestr'])[0]
                 return False
-        
-        msgBox = QMessageBox()
-        msgBox.setText(u'提交成功！')
-        msgBox.setStandardButtons(QMessageBox.Ok)
-        msgBox.exec_()
-        aPanel.close()      
-            
+        return True                    
 
     def question(self,title,content,vcode):
         self.questionPost['vcode'] = vcode
@@ -334,19 +161,15 @@ class signBaidu(object):
         if "输入验证码" in self.requestData: 
             d=pq(self.requestData)
             vcodeimgUrl=d('.vcode-img').attr('src')
-            pixmap = QPixmap()
-            pixmap.loadFromData(urllib.urlopen(vcodeimgUrl).read())
-            qPanelUi.vcodeimg.setPixmap(pixmap)
+            self.questionVodeImageUrl = vcodeimgUrl
  
             self.questionPost['vcodestr'] = vcodeimgUrl.split('?')[1]
-            self.questionPost['vcodestr'] = re.findall(r"codestr=(.*)",self.questionPost['vcodestr'])[0]       
+            self.questionPost['vcodestr'] = re.findall(r"codestr=(.*)",self.questionPost['vcodestr'])[0]
+            return False       
         else:
-            msgBox = QMessageBox()
-            msgBox.setText(u'提交成功！')
-            msgBox.setStandardButtons(QMessageBox.Ok)
-            msgBox.exec_()
-            qPanelUi.close()     
-    #--------------------------------------------------------------------------------
+            return True
+              
+#-------------------------------------------------------------------------------------------------------
 
 def showQPanel():
     qPanelUi.setupUi(qPanel)    
@@ -362,7 +185,17 @@ def sinQuestion():
     title=str(qPanelUi.title.text().toUtf8())
     content=str(qPanelUi.content.toPlainText().toUtf8())
     vcode=str(qPanelUi.vcode.text().toUtf8())
-    login.question(title,content,vcode)
+    if not login.question(title,content,vcode):
+        pixmap = QPixmap()
+        pixmap.loadFromData(urllib.urlopen(login.questionVodeImageUrl).read())
+        qPanelUi.vcodeimg.setPixmap(pixmap)
+    else:
+        print login.requestData
+        msgBox = QMessageBox()
+        msgBox.setText(u'提交成功！')
+        msgBox.setStandardButtons(QMessageBox.Ok)
+        msgBox.exec_()
+        qPanel.close()   
     
 def sinAnswer(): 
     url='http://zhidao.baidu.com/msubmit/answer?ta=1&cifr=null'
@@ -370,7 +203,17 @@ def sinAnswer():
     login.answerPost['qid'] = str(aPanelui.qid.text().toUtf8())
     login.answerPost['content'] = str(aPanelui.content.toPlainText().toUtf8())
     login.answerPost['vcode'] = str(aPanelui.vcode.text().toUtf8())
-    login.answer(url, login.answerPost)
+    if not login.answer(url, login.answerPost):
+        tpixmap = QPixmap()
+        tpixmap.loadFromData(urllib.urlopen(login.answerVodeImageUrl).read())
+        aPanelui.vcodeimg.setPixmap(tpixmap)
+    else:
+        print login.requestData
+        msgBox = QMessageBox()
+        msgBox.setText(u'提交成功！')
+        msgBox.setStandardButtons(QMessageBox.Ok)
+        msgBox.exec_()
+        aPanel.close()  
 
 def zLogin():
     login.username = str(ui.userName.text().toUtf8()).strip()
@@ -380,7 +223,11 @@ def zLogin():
     main()
 
 def main():   
-    login.loginBaidu()
+    if not login.loginBaidu():
+        pixmap = QPixmap()
+        pixmap.loadFromData(urllib.urlopen(login.loginVcodeImageUrl).read())
+        ui.vcodeImg.setPixmap(pixmap)
+        return False
     if login.tbUrl:
         print '-'*67
         print 'Successful login!'
